@@ -506,13 +506,24 @@
                 num: 20   // Number of results
             });
 
-            const response = await fetch(`${SERP_API_CONFIG.baseUrl}?${params.toString()}`);
+            // Use CORS proxy to bypass browser CORS restrictions
+            const corsProxyUrl = 'https://api.allorigins.win/get?url=';
+            const targetUrl = encodeURIComponent(`${SERP_API_CONFIG.baseUrl}?${params.toString()}`);
+            const response = await fetch(`${corsProxyUrl}${targetUrl}`);
             
             if (!response.ok) {
                 throw new Error(`SerpAPI request failed: ${response.status} ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const corsData = await response.json();
+            
+            // Check if CORS proxy request was successful
+            if (!corsData.contents) {
+                throw new Error('CORS proxy request failed');
+            }
+            
+            // Parse the actual SerpAPI response from the proxy
+            const data = JSON.parse(corsData.contents);
             
             if (data.error) {
                 throw new Error(`SerpAPI Error: ${data.error}`);
