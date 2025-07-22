@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מחפש אנשי קשר לגביה - Contact Finder</title>
+    
+    <!-- Tailwind CSS CDN with RTL support -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Hebrew fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <style>
+        * {
+            font-family: 'Rubik', system-ui, -apple-system, sans-serif;
+        }
+        
+        .hebrew-text {
+            font-family: 'Rubik', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .contact-card {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .contact-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .search-input {
+            font-family: 'Rubik', sans-serif;
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .relevance-high { background-color: #dcfce7; color: #166534; }
+        .relevance-medium { background-color: #fef3c7; color: #92400e; }
+        .relevance-low { background-color: #fce7f3; color: #9f1239; }
+        
+        .hidden-mobile {
+            display: none;
+        }
+        
+        @media (min-width: 768px) {
+            .hidden-mobile {
+                display: block;
+            }
+        }
+        
+        .mobile-only {
+            display: block;
+        }
+        
+        @media (min-width: 768px) {
+            .mobile-only {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" dir="rtl">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-900 hebrew-text">מחפש אנשי קשר לגביה</h1>
+                    <span class="mr-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">גרסה 1.0</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="exportBtn" class="text-gray-600 hover:text-gray-900 transition-colors" title="ייצא רשימה">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                    </button>
+                    <button id="favoritesBtn" class="text-gray-600 hover:text-gray-900 transition-colors" title="מועדפים">
+                        <i data-lucide="heart" class="w-5 h-5"></i>
+                    </button>
+                    <button id="settingsBtn" class="text-gray-600 hover:text-gray-900 transition-colors" title="הגדרות">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Main Content -->
+            <main class="flex-1">
+                <!-- Search Section -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-900 hebrew-text mb-2">חיפוש אנשי קשר</h2>
+                        <p class="text-gray-600 hebrew-text">חפש לקוחות, חברות או קיבוצים למציאת אנשי הקשר הרלוונטיים לגביה</p>
+                    </div>
+                    
+                    <form id="searchForm" class="space-y-4">
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="searchInput" 
+                                class="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none search-input hebrew-text transition-colors"
+                                placeholder="חפש חברה, קיבוץ, מס' חברה או שם לקוח..."
+                                autocomplete="off"
+                            >
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Search suggestions dropdown -->
+                        <div id="searchSuggestions" class="hidden absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1"></div>
+                        
+                        <!-- Customer type selection -->
+                        <div class="flex flex-wrap gap-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="customerType" value="auto" class="text-blue-600 ml-2" checked>
+                                <span class="text-sm text-gray-700 hebrew-text">זיהוי אוטומטי</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="customerType" value="company" class="text-blue-600 ml-2">
+                                <span class="text-sm text-gray-700 hebrew-text">חברה</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="customerType" value="kibbutz" class="text-blue-600 ml-2">
+                                <span class="text-sm text-gray-700 hebrew-text">קיבוץ</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="customerType" value="private" class="text-blue-600 ml-2">
+                                <span class="text-sm text-gray-700 hebrew-text">לקוח פרטי</span>
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors hebrew-text">
+                            חפש אנשי קשר
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Loading indicator -->
+                <div id="loadingIndicator" class="hidden text-center py-8">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p class="text-gray-600 hebrew-text">מחפש אנשי קשר רלוונטיים...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="hidden">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-semibold text-gray-900 hebrew-text">תוצאות חיפוש</h3>
+                        <div class="flex items-center gap-4">
+                            <span id="resultsCount" class="text-gray-600 text-sm"></span>
+                            <select id="sortSelect" class="text-sm border border-gray-300 rounded px-3 py-1 hebrew-text">
+                                <option value="relevance">רלוונטיות</option>
+                                <option value="name">שם</option>
+                                <option value="company">חברה</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="contactsGrid" class="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                        <!-- Contact cards will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- No results message -->
+                <div id="noResults" class="hidden text-center py-12">
+                    <i data-lucide="search-x" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-2">לא נמצאו תוצאות</h3>
+                    <p class="text-gray-600 hebrew-text">נסה לחפש במילות מפתח שונות או לבדוק את האיות</p>
+                </div>
+            </main>
+
+            <!-- Sidebar -->
+            <aside class="w-full lg:w-80">
+                <!-- Recent Searches -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-4">חיפושים אחרונים</h3>
+                    <div id="recentSearches" class="space-y-2">
+                        <p class="text-gray-500 text-sm hebrew-text">אין חיפושים אחרונים</p>
+                    </div>
+                </div>
+
+                <!-- Favorites -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-4">מועדפים</h3>
+                    <div id="favoriteContacts" class="space-y-2">
+                        <p class="text-gray-500 text-sm hebrew-text">אין אנשי קשר מועדפים</p>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-4">סטטיסטיקות</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 text-sm hebrew-text">חיפושים היום</span>
+                            <span id="searchesToday" class="font-semibold text-gray-900">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 text-sm hebrew-text">אנשי קשר נמצאו</span>
+                            <span id="contactsFound" class="font-semibold text-gray-900">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 text-sm hebrew-text">מועדפים</span>
+                            <span id="favoritesCount" class="font-semibold text-gray-900">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text">פרטי איש קשר</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div id="contactDetails" class="space-y-3">
+                    <!-- Contact details will be inserted here -->
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button id="addToFavorites" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors hebrew-text">
+                        הוסף למועדפים
+                    </button>
+                    <button id="copyContact" class="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-700 transition-colors hebrew-text">
+                        העתק פרטים
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentContacts = [];
+        let searchHistory = JSON.parse(localStorage.getItem('contactfinder_history') || '[]');
+        let favorites = JSON.parse(localStorage.getItem('contactfinder_favorites') || '[]');
+        let statistics = JSON.parse(localStorage.getItem('contactfinder_stats') || '{"searchesToday": 0, "contactsFound": 0, "date": ""}');
+        
+        // SerpAPI configuration
+        const SERP_API_CONFIG = {
+            apiKey: 'YOUR_SERPAPI_KEY_HERE', // Replace with your actual API key
+            baseUrl: 'https://serpapi.com/search.json',
+            rateLimit: 100, // requests per month for free tier
+            cache: new Map(),
+            cacheExpiry: 1000 * 60 * 60 // 1 hour
+        };
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            // Initialize Lucide icons
+            lucide.createIcons();
+            
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Load saved data
+            updateStatistics();
+            loadRecentSearches();
+            loadFavorites();
+            
+            // Check if it's a new day for statistics
+            checkNewDay();
+        }
+
+        function setupEventListeners() {
+            // Search form
+            document.getElementById('searchForm').addEventListener('submit', handleSearch);
+            document.getElementById('searchInput').addEventListener('input', handleSearchInput);
+            
+            // Sort functionality
+            document.getElementById('sortSelect').addEventListener('change', sortResults);
+            
+            // Modal functionality
+            document.getElementById('closeModal').addEventListener('click', closeModal);
+            document.getElementById('contactModal').addEventListener('click', function(e) {
+                if (e.target === this) closeModal();
+            });
+            
+            // Header buttons
+            document.getElementById('exportBtn').addEventListener('click', exportContacts);
+            document.getElementById('favoritesBtn').addEventListener('click', showFavorites);
+            document.getElementById('settingsBtn').addEventListener('click', showSettings);
+        }
+
+        async function handleSearch(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+            
+            const customerType = document.querySelector('input[name="customerType"]:checked').value;
+            
+            // Show loading indicator
+            showLoading();
+            
+            // Add to search history
+            addToSearchHistory(query, customerType);
+            
+            try {
+                // Detect customer type if auto mode
+                const detectedType = customerType === 'auto' ? detectCustomerType(query) : customerType;
+                
+                // Search for contacts
+                const contacts = await searchContacts(query, detectedType);
+                
+                // Display results
+                displayResults(contacts, query);
+                
+                // Update statistics
+                updateStatisticsAfterSearch(contacts.length);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                showError('שגיאה בחיפוש. אנא נסה שנית.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function detectCustomerType(query) {
+            // Hebrew company indicators
+            const companyPatterns = [
+                /בע.?מ/i, /בע"מ/i, /חברת/i, /קבוצת/i, /תעשיות/i,
+                /לימיטד/i, /ltd/i, /inc/i, /corp/i, /company/i
+            ];
+            
+            // Hebrew kibbutz indicators
+            const kibbutzPatterns = [
+                /קיבוץ/i, /קבוץ/i, /kibbutz/i
+            ];
+            
+            // Check for company number (Israeli company registration format)
+            const companyNumberPattern = /^\d{9}$/;
+            
+            if (companyNumberPattern.test(query.replace(/[^0-9]/g, ''))) {
+                return 'company';
+            }
+            
+            for (const pattern of kibbutzPatterns) {
+                if (pattern.test(query)) {
+                    return 'kibbutz';
+                }
+            }
+            
+            for (const pattern of companyPatterns) {
+                if (pattern.test(query)) {
+                    return 'company';
+                }
+            }
+            
+            return 'private';
+        }
+
+        async function searchContacts(query, customerType) {
+            // Check cache first
+            const cacheKey = `${query}-${customerType}`;
+            if (SERP_API_CONFIG.cache.has(cacheKey)) {
+                const cached = SERP_API_CONFIG.cache.get(cacheKey);
+                if (Date.now() - cached.timestamp < SERP_API_CONFIG.cacheExpiry) {
+                    return cached.data;
+                }
+            }
+            
+            try {
+                // Build search query
+                const searchQuery = buildSearchQuery(query, customerType);
+                
+                // For demo purposes, we'll simulate API response
+                // In production, replace this with actual SerpAPI call
+                const contacts = await simulateApiCall(searchQuery, customerType);
+                
+                // Cache results
+                SERP_API_CONFIG.cache.set(cacheKey, {
+                    data: contacts,
+                    timestamp: Date.now()
+                });
+                
+                return contacts;
+                
+            } catch (error) {
+                console.error('API Error:', error);
+                return [];
+            }
+        }
+
+        function buildSearchQuery(query, customerType) {
+            const baseQuery = query;
+            const locationModifier = 'אנשי קשר';
+            
+            switch (customerType) {
+                case 'company':
+                    return `${baseQuery} מנהל חשבונות OR מנהל כספים OR רו"ח OR CFO ${locationModifier}`;
+                case 'kibbutz':
+                    return `${baseQuery} מזכיר OR מזכירה OR מנהל חשבונות ${locationModifier}`;
+                case 'private':
+                    return `${baseQuery} בעל העסק OR מנהל רכש OR איש קשר ${locationModifier}`;
+                default:
+                    return `${baseQuery} ${locationModifier}`;
+            }
+        }
+
+        // Simulate API response for demo purposes
+        async function simulateApiCall(query, customerType) {
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Generate mock contacts based on query and customer type
+            return generateMockContacts(query, customerType);
+        }
+
+        function generateMockContacts(query, customerType) {
+            const contacts = [];
+            const numContacts = Math.floor(Math.random() * 8) + 3; // 3-10 contacts
+            
+            for (let i = 0; i < numContacts; i++) {
+                const contact = generateMockContact(query, customerType, i);
+                contacts.push(contact);
+            }
+            
+            // Sort by relevance
+            return contacts.sort((a, b) => b.relevance - a.relevance);
+        }
+
+        function generateMockContact(query, customerType, index) {
+            const firstNames = ['יוסי', 'רות', 'דוד', 'מרים', 'אברהם', 'רחל', 'משה', 'שרה', 'חיים', 'לאה'];
+            const lastNames = ['כהן', 'לוי', 'מזרחי', 'פרידמן', 'דוד', 'אברמוביץ', 'גולדשטיין', 'ברקוביץ', 'רוזנברג', 'שפירא'];
+            
+            const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+            const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+            
+            let title, company;
+            
+            switch (customerType) {
+                case 'company':
+                    title = ['מנהל חשבונות', 'מנהל כספים', 'רואה חשבון', 'מנכ"ל'][Math.floor(Math.random() * 4)];
+                    company = query.includes('חברת') ? query : `חברת ${query} בע"מ`;
+                    break;
+                case 'kibbutz':
+                    title = ['מזכיר', 'מזכירה', 'מנהל חשבונות', 'גזבר'][Math.floor(Math.random() * 4)];
+                    company = query.includes('קיבוץ') ? query : `קיבוץ ${query}`;
+                    break;
+                default:
+                    title = ['בעל העסק', 'מנהל רכש', 'איש קשר', 'מנהל'][Math.floor(Math.random() * 4)];
+                    company = `${firstName} ${lastName} - ${query}`;
+            }
+            
+            const relevanceScore = Math.max(0.3, 1 - (index * 0.15));
+            
+            return {
+                id: generateId(),
+                name: `${firstName} ${lastName}`,
+                title: title,
+                company: company,
+                phone: generatePhoneNumber(),
+                email: generateEmail(firstName, lastName, company),
+                relevance: relevanceScore,
+                type: customerType,
+                source: 'Google Search',
+                addedAt: new Date().toISOString()
+            };
+        }
+
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        function generatePhoneNumber() {
+            const prefixes = ['050', '052', '053', '054', '055', '058'];
+            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+            const number = Math.floor(Math.random() * 9000000) + 1000000;
+            return `${prefix}-${number.toString().substr(0, 3)}-${number.toString().substr(3)}`;
+        }
+
+        function generateEmail(firstName, lastName, company) {
+            const domain = company.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + '.co.il';
+            const username = (firstName + '.' + lastName).toLowerCase()
+                .replace(/[אבגדהוזחטיכלמנסעפצקרשת]/g, match => {
+                    const hebrewToEnglish = {
+                        'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h',
+                        'ו': 'v', 'ז': 'z', 'ח': 'ch', 'ט': 't', 'י': 'y',
+                        'כ': 'k', 'ל': 'l', 'מ': 'm', 'ן': 'n', 'נ': 'n',
+                        'ס': 's', 'ע': 'e', 'פ': 'p', 'צ': 'ts', 'ק': 'k',
+                        'ר': 'r', 'ש': 'sh', 'ת': 't'
+                    };
+                    return hebrewToEnglish[match] || match;
+                });
+            return `${username}@${domain}`;
+        }
+
+        function displayResults(contacts, query) {
+            currentContacts = contacts;
+            const resultsSection = document.getElementById('resultsSection');
+            const noResults = document.getElementById('noResults');
+            const contactsGrid = document.getElementById('contactsGrid');
+            const resultsCount = document.getElementById('resultsCount');
+            
+            if (contacts.length === 0) {
+                resultsSection.classList.add('hidden');
+                noResults.classList.remove('hidden');
+                return;
+            }
+            
+            noResults.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            
+            resultsCount.textContent = `נמצאו ${contacts.length} אנשי קשר עבור "${query}"`;
+            
+            contactsGrid.innerHTML = '';
+            contacts.forEach(contact => {
+                const contactCard = createContactCard(contact);
+                contactsGrid.appendChild(contactCard);
+            });
+        }
+
+        function createContactCard(contact) {
+            const card = document.createElement('div');
+            card.className = 'contact-card bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer';
+            
+            const relevanceClass = contact.relevance > 0.7 ? 'relevance-high' : 
+                                 contact.relevance > 0.4 ? 'relevance-medium' : 'relevance-low';
+            const relevanceText = contact.relevance > 0.7 ? 'רלוונטיות גבוהה' : 
+                                 contact.relevance > 0.4 ? 'רלוונטיות בינונית' : 'רלוונטיות נמוכה';
+            
+            card.innerHTML = `
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-1">${contact.name}</h3>
+                        <p class="text-blue-600 text-sm mb-1 hebrew-text">${contact.title}</p>
+                        <p class="text-gray-600 text-sm hebrew-text">${contact.company}</p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${relevanceClass}">
+                        ${relevanceText}
+                    </span>
+                </div>
+                
+                <div class="space-y-2 mb-4">
+                    <div class="flex items-center text-sm text-gray-600">
+                        <i data-lucide="phone" class="w-4 h-4 ml-2"></i>
+                        <span dir="ltr">${contact.phone}</span>
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        <i data-lucide="mail" class="w-4 h-4 ml-2"></i>
+                        <span dir="ltr">${contact.email}</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button class="call-btn flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors" data-phone="${contact.phone}">
+                        <i data-lucide="phone" class="w-4 h-4"></i>
+                        <span class="hebrew-text">חייג</span>
+                    </button>
+                    <button class="email-btn flex items-center gap-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors" data-email="${contact.email}">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                        <span class="hebrew-text">מייל</span>
+                    </button>
+                    <button class="copy-btn flex items-center gap-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors" data-contact='${JSON.stringify(contact)}'>
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span class="hebrew-text">העתק</span>
+                    </button>
+                    <button class="favorite-btn flex items-center gap-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors" data-contact='${JSON.stringify(contact)}'>
+                        <i data-lucide="heart" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Add event listeners
+            card.querySelector('.call-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.open(`tel:${contact.phone}`);
+            });
+            
+            card.querySelector('.email-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.open(`mailto:${contact.email}`);
+            });
+            
+            card.querySelector('.copy-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyContactInfo(contact);
+            });
+            
+            card.querySelector('.favorite-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFavorite(contact);
+            });
+            
+            card.addEventListener('click', () => {
+                showContactModal(contact);
+            });
+            
+            // Initialize icons for this card
+            lucide.createIcons();
+            
+            return card;
+        }
+
+        function showContactModal(contact) {
+            const modal = document.getElementById('contactModal');
+            const contactDetails = document.getElementById('contactDetails');
+            
+            contactDetails.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">שם מלא</label>
+                        <p class="text-gray-900 hebrew-text">${contact.name}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">תפקיד</label>
+                        <p class="text-gray-900 hebrew-text">${contact.title}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">חברה</label>
+                        <p class="text-gray-900 hebrew-text">${contact.company}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">טלפון</label>
+                        <p class="text-gray-900" dir="ltr">${contact.phone}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">אימייל</label>
+                        <p class="text-gray-900" dir="ltr">${contact.email}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 hebrew-text">רלוונטיות</label>
+                        <p class="text-gray-900">${Math.round(contact.relevance * 100)}%</p>
+                    </div>
+                </div>
+            `;
+            
+            // Set up modal buttons
+            document.getElementById('addToFavorites').onclick = () => {
+                addToFavorites(contact);
+                closeModal();
+            };
+            
+            document.getElementById('copyContact').onclick = () => {
+                copyContactInfo(contact);
+                closeModal();
+            };
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('contactModal').classList.add('hidden');
+        }
+
+        function copyContactInfo(contact) {
+            const text = `שם: ${contact.name}
+תפקיד: ${contact.title}
+חברה: ${contact.company}
+טלפון: ${contact.phone}
+אימייל: ${contact.email}`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('פרטי איש הקשר הועתקו בהצלחה');
+            }).catch(() => {
+                showNotification('שגיאה בהעתקת הפרטים', 'error');
+            });
+        }
+
+        function toggleFavorite(contact) {
+            const index = favorites.findIndex(fav => fav.id === contact.id);
+            
+            if (index > -1) {
+                favorites.splice(index, 1);
+                showNotification('איש הקשר הוסר מהמועדפים');
+            } else {
+                favorites.push(contact);
+                showNotification('איש הקשר נוסף למועדפים');
+            }
+            
+            localStorage.setItem('contactfinder_favorites', JSON.stringify(favorites));
+            loadFavorites();
+            updateStatistics();
+        }
+
+        function addToFavorites(contact) {
+            if (!favorites.find(fav => fav.id === contact.id)) {
+                favorites.push(contact);
+                localStorage.setItem('contactfinder_favorites', JSON.stringify(favorites));
+                loadFavorites();
+                updateStatistics();
+                showNotification('איש הקשר נוסף למועדפים');
+            } else {
+                showNotification('איש הקשר כבר קיים במועדפים');
+            }
+        }
+
+        function addToSearchHistory(query, customerType) {
+            const searchEntry = {
+                query,
+                customerType,
+                timestamp: new Date().toISOString(),
+                id: generateId()
+            };
+            
+            // Remove duplicate searches
+            searchHistory = searchHistory.filter(entry => entry.query !== query);
+            
+            // Add to beginning
+            searchHistory.unshift(searchEntry);
+            
+            // Keep only last 10 searches
+            if (searchHistory.length > 10) {
+                searchHistory = searchHistory.slice(0, 10);
+            }
+            
+            localStorage.setItem('contactfinder_history', JSON.stringify(searchHistory));
+            loadRecentSearches();
+        }
+
+        function loadRecentSearches() {
+            const recentSearches = document.getElementById('recentSearches');
+            
+            if (searchHistory.length === 0) {
+                recentSearches.innerHTML = '<p class="text-gray-500 text-sm hebrew-text">אין חיפושים אחרונים</p>';
+                return;
+            }
+            
+            recentSearches.innerHTML = '';
+            searchHistory.slice(0, 5).forEach(entry => {
+                const searchItem = document.createElement('button');
+                searchItem.className = 'block w-full text-start p-2 text-sm text-gray-700 hover:bg-gray-100 rounded hebrew-text';
+                searchItem.textContent = entry.query;
+                searchItem.addEventListener('click', () => {
+                    document.getElementById('searchInput').value = entry.query;
+                    document.querySelector(`input[name="customerType"][value="${entry.customerType}"]`).checked = true;
+                });
+                recentSearches.appendChild(searchItem);
+            });
+        }
+
+        function loadFavorites() {
+            const favoriteContacts = document.getElementById('favoriteContacts');
+            
+            if (favorites.length === 0) {
+                favoriteContacts.innerHTML = '<p class="text-gray-500 text-sm hebrew-text">אין אנשי קשר מועדפים</p>';
+                return;
+            }
+            
+            favoriteContacts.innerHTML = '';
+            favorites.slice(0, 3).forEach(contact => {
+                const favoriteItem = document.createElement('div');
+                favoriteItem.className = 'p-2 border border-gray-200 rounded text-sm';
+                favoriteItem.innerHTML = `
+                    <div class="font-medium hebrew-text">${contact.name}</div>
+                    <div class="text-gray-600 hebrew-text">${contact.title}</div>
+                    <div class="text-xs text-gray-500" dir="ltr">${contact.phone}</div>
+                `;
+                favoriteItem.addEventListener('click', () => showContactModal(contact));
+                favoriteContacts.appendChild(favoriteItem);
+            });
+        }
+
+        function updateStatistics() {
+            document.getElementById('searchesToday').textContent = statistics.searchesToday || 0;
+            document.getElementById('contactsFound').textContent = statistics.contactsFound || 0;
+            document.getElementById('favoritesCount').textContent = favorites.length;
+        }
+
+        function updateStatisticsAfterSearch(contactCount) {
+            statistics.searchesToday = (statistics.searchesToday || 0) + 1;
+            statistics.contactsFound = (statistics.contactsFound || 0) + contactCount;
+            statistics.date = new Date().toDateString();
+            
+            localStorage.setItem('contactfinder_stats', JSON.stringify(statistics));
+            updateStatistics();
+        }
+
+        function checkNewDay() {
+            const today = new Date().toDateString();
+            if (statistics.date !== today) {
+                statistics.searchesToday = 0;
+                statistics.date = today;
+                localStorage.setItem('contactfinder_stats', JSON.stringify(statistics));
+                updateStatistics();
+            }
+        }
+
+        function handleSearchInput(e) {
+            const query = e.target.value;
+            
+            // Simple autocomplete from search history
+            if (query.length > 1) {
+                const suggestions = searchHistory
+                    .filter(entry => entry.query.toLowerCase().includes(query.toLowerCase()))
+                    .slice(0, 5);
+                    
+                showSearchSuggestions(suggestions);
+            } else {
+                hideSearchSuggestions();
+            }
+        }
+
+        function showSearchSuggestions(suggestions) {
+            const suggestionsEl = document.getElementById('searchSuggestions');
+            
+            if (suggestions.length === 0) {
+                hideSearchSuggestions();
+                return;
+            }
+            
+            suggestionsEl.innerHTML = '';
+            suggestions.forEach(suggestion => {
+                const suggestionItem = document.createElement('button');
+                suggestionItem.className = 'block w-full text-start px-4 py-2 hover:bg-gray-100 text-sm hebrew-text';
+                suggestionItem.textContent = suggestion.query;
+                suggestionItem.addEventListener('click', () => {
+                    document.getElementById('searchInput').value = suggestion.query;
+                    hideSearchSuggestions();
+                });
+                suggestionsEl.appendChild(suggestionItem);
+            });
+            
+            suggestionsEl.classList.remove('hidden');
+        }
+
+        function hideSearchSuggestions() {
+            document.getElementById('searchSuggestions').classList.add('hidden');
+        }
+
+        function sortResults() {
+            const sortBy = document.getElementById('sortSelect').value;
+            
+            currentContacts.sort((a, b) => {
+                switch (sortBy) {
+                    case 'name':
+                        return a.name.localeCompare(b.name, 'he');
+                    case 'company':
+                        return a.company.localeCompare(b.company, 'he');
+                    case 'relevance':
+                    default:
+                        return b.relevance - a.relevance;
+                }
+            });
+            
+            displayResults(currentContacts, '');
+        }
+
+        function exportContacts() {
+            if (currentContacts.length === 0) {
+                showNotification('אין אנשי קשר לייצוא', 'error');
+                return;
+            }
+            
+            const csvContent = generateCSV(currentContacts);
+            downloadFile(csvContent, 'contacts.csv', 'text/csv');
+            showNotification('הרשימה יוצאה בהצלחה');
+        }
+
+        function generateCSV(contacts) {
+            const headers = ['שם', 'תפקיד', 'חברה', 'טלפון', 'אימייל', 'רלוונטיות'];
+            const rows = contacts.map(contact => [
+                contact.name,
+                contact.title,
+                contact.company,
+                contact.phone,
+                contact.email,
+                Math.round(contact.relevance * 100) + '%'
+            ]);
+            
+            return [headers, ...rows]
+                .map(row => row.map(field => `"${field}"`).join(','))
+                .join('\n');
+        }
+
+        function downloadFile(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const url = window.URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            window.URL.revokeObjectURL(url);
+        }
+
+        function showFavorites() {
+            if (favorites.length === 0) {
+                showNotification('אין אנשי קשר מועדפים');
+                return;
+            }
+            
+            displayResults(favorites, 'מועדפים');
+        }
+
+        function showSettings() {
+            alert('הגדרות יבואו בגרסה הבאה');
+        }
+
+        function showLoading() {
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('noResults').classList.add('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        }
+
+        function showNotification(message, type = 'success') {
+            // Simple notification - in production, use a proper toast library
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 left-4 z-50 px-4 py-2 rounded-lg text-white ${
+                type === 'error' ? 'bg-red-600' : 'bg-green-600'
+            } hebrew-text`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 3000);
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+    </script>
+</body>
+</html>
