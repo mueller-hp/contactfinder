@@ -395,10 +395,14 @@
                 // Show specific error messages based on error type
                 if (error.message.includes('SerpAPI key not configured')) {
                     showError('מפתח SerpAPI לא הוגדר. אנא הגדר את המפתח בקובץ .env');
+                } else if (error.message.includes('All CORS proxy services are currently unavailable')) {
+                    showError('שירותי החיפוש אינם זמינים כרגע. זוהי בעיה ידועה עם שירותי Proxy חינמיים. אנא נסה שוב מאוחר יותר.');
                 } else if (error.message.includes('SerpAPI request failed')) {
                     showError('שגיאה בקישור לשירות החיפוש. אנא בדוק את החיבור לאינטרנט ונסה שנית.');
                 } else if (error.message.includes('SerpAPI Error')) {
                     showError('שגיאה בשירות החיפוש: ' + error.message.replace('SerpAPI Error: ', ''));
+                } else if (error.message.includes('CORS proxy') || error.message.includes('All CORS proxies failed')) {
+                    showError('שירותי החיפוש אינם זמינים זמנית. זוהי בעיה טכנית עם שירותי Proxy. אנא נסה שוב מאוחר יותר.');
                 } else {
                     showError('שגיאה בחיפוש. אנא נסה שנית או פנה לתמיכה.');
                 }
@@ -560,7 +564,17 @@
             }
             
             if (!response || !response.ok) {
-                throw new Error(`All CORS proxies failed. Last error: ${lastError?.message || 'Unknown error'}`);
+                // If all proxies failed, provide a helpful error message
+                const proxyError = `All CORS proxy services are currently unavailable. This is a known limitation of free proxy services. 
+                
+The search functionality requires a CORS proxy to access SerpAPI from the browser. For a production deployment, consider:
+1. Using a serverless function (Vercel, Netlify)
+2. Setting up your own CORS proxy server
+3. Implementing server-side API calls
+
+Last error: ${lastError?.message || 'Unknown error'}`;
+                
+                throw new Error(proxyError);
             }
 
             let data;
