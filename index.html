@@ -508,9 +508,10 @@
 
             // Use multiple CORS proxy services for better reliability
             const corsProxies = [
-                'https://api.codetabs.com/v1/proxy?quest=',
-                'https://cors-anywhere.herokuapp.com/',
-                'https://api.allorigins.win/get?url='
+                'https://corsproxy.io/?',
+                'https://cors-proxy.fringe.zone/',
+                'https://api.allorigins.win/get?url=',
+                'https://thingproxy.freeboard.io/fetch/'
             ];
             
             let response = null;
@@ -520,23 +521,40 @@
             for (const proxyUrl of corsProxies) {
                 try {
                     const targetUrl = `${SERP_API_CONFIG.baseUrl}?${params.toString()}`;
-                    const fullUrl = proxyUrl.includes('allorigins') 
-                        ? `${proxyUrl}${encodeURIComponent(targetUrl)}`
-                        : `${proxyUrl}${targetUrl}`;
+                    let fullUrl;
+                    
+                    // Handle different proxy URL formats
+                    if (proxyUrl.includes('allorigins')) {
+                        fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+                    } else if (proxyUrl.includes('corsproxy.io')) {
+                        fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        fullUrl = `${proxyUrl}${targetUrl}`;
+                    }
+                    
+                    console.log(`Trying proxy: ${proxyUrl.replace(/[?].*/, '')}...`);
                     
                     response = await Promise.race([
-                        fetch(fullUrl),
+                        fetch(fullUrl, {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json',
+                            }
+                        }),
                         new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('Request timeout')), 10000)
+                            setTimeout(() => reject(new Error('Request timeout')), 15000)
                         )
                     ]);
                     
                     if (response.ok) {
+                        console.log(`Proxy success: ${proxyUrl.replace(/[?].*/, '')}`);
                         break; // Success, use this proxy
+                    } else {
+                        console.warn(`Proxy ${proxyUrl.replace(/[?].*/, '')} returned ${response.status}`);
                     }
                 } catch (error) {
                     lastError = error;
-                    console.warn(`CORS proxy ${proxyUrl} failed:`, error.message);
+                    console.warn(`CORS proxy ${proxyUrl.replace(/[?].*/, '')} failed:`, error.message);
                     continue; // Try next proxy
                 }
             }
@@ -550,22 +568,40 @@
             
             // Handle different proxy response formats
             try {
-                const corsData = JSON.parse(responseText);
+                let corsData;
                 
-                // Handle allorigins format
+                // First, try to parse as JSON
+                try {
+                    corsData = JSON.parse(responseText);
+                } catch (jsonError) {
+                    // If not JSON, it might be plain text - check if it's HTML error
+                    if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE')) {
+                        throw new Error('Proxy returned HTML error page');
+                    }
+                    throw new Error(`Invalid JSON response: ${jsonError.message}`);
+                }
+                
+                // Handle different proxy response formats
                 if (corsData.contents) {
+                    // AllOrigins format: { contents: "actual response", status: {...} }
                     data = JSON.parse(corsData.contents);
+                } else if (corsData.error) {
+                    // Proxy error format
+                    throw new Error(`Proxy error: ${corsData.error}`);
                 } else {
-                    // Direct proxy response
+                    // Direct proxy response (corsproxy.io, thingproxy, etc.)
                     data = corsData;
                 }
-            } catch (parseError) {
-                // If JSON parsing fails, try parsing responseText as direct JSON
-                try {
-                    data = JSON.parse(responseText);
-                } catch (secondParseError) {
-                    throw new Error(`Failed to parse API response: ${secondParseError.message}`);
+                
+                // Validate that we got a proper SerpAPI response
+                if (typeof data !== 'object' || data === null) {
+                    throw new Error('Invalid SerpAPI response format');
                 }
+                
+            } catch (parseError) {
+                console.error('Response parsing failed:', parseError.message);
+                console.error('Raw response (first 200 chars):', responseText.substring(0, 200));
+                throw new Error(`Failed to parse API response: ${parseError.message}`);
             }
             
             if (data.error) {
