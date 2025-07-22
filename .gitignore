@@ -1,0 +1,46 @@
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# API Keys and secrets
+**/config/keys.js
+**/config/secrets.json
+api-keys.txt
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies (if we add them later)
+node_modules/
+vendor/
+
+# Build files (for future use)
+dist/
+build/
+*.min.js
+*.min.css
+
+# Cache files
+.cache/
+*.tmp
+*.temp

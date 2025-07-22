@@ -16,6 +16,9 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     
+    <!-- Configuration -->
+    <script src="./config.js"></script>
+    
     <style>
         * {
             font-family: 'Rubik', system-ui, -apple-system, sans-serif;
@@ -264,13 +267,13 @@
         let favorites = JSON.parse(localStorage.getItem('contactfinder_favorites') || '[]');
         let statistics = JSON.parse(localStorage.getItem('contactfinder_stats') || '{"searchesToday": 0, "contactsFound": 0, "date": ""}');
         
-        // SerpAPI configuration
+        // SerpAPI configuration - now using config.js
         const SERP_API_CONFIG = {
-            apiKey: 'YOUR_SERPAPI_KEY_HERE', // Replace with your actual API key
-            baseUrl: 'https://serpapi.com/search.json',
-            rateLimit: 100, // requests per month for free tier
+            apiKey: window.ContactFinderConfig.get('serpApiKey'),
+            baseUrl: window.ContactFinderConfig.get('serpApiBaseUrl'),
+            rateLimit: window.ContactFinderConfig.get('serpApiRateLimit'),
             cache: new Map(),
-            cacheExpiry: 1000 * 60 * 60 // 1 hour
+            cacheExpiry: window.ContactFinderConfig.get('cacheExpiry')
         };
 
         // Initialize the application
