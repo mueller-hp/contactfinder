@@ -190,8 +190,19 @@
                 <!-- No results message -->
                 <div id="noResults" class="hidden text-center py-12">
                     <i data-lucide="search-x" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
-                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-2">לא נמצאו תוצאות</h3>
-                    <p class="text-gray-600 hebrew-text">נסה לחפש במילות מפתח שונות או לבדוק את האיות</p>
+                    <h3 class="text-lg font-semibold text-gray-900 hebrew-text mb-2">לא נמצאו אנשי קשר</h3>
+                    <div class="text-gray-600 hebrew-text space-y-2">
+                        <p>לא נמצאו אנשי קשר רלוונטיים עבור החיפוש</p>
+                        <div class="text-sm mt-4">
+                            <p class="font-semibold mb-2">נסה:</p>
+                            <ul class="list-disc list-inside text-right space-y-1">
+                                <li>מילות מפתח שונות או קצרות יותר</li>
+                                <li>שם החברה בלבד (ללא "בע״מ")</li>
+                                <li>חיפוש באנגלית אם השם הוא באנגלית</li>
+                                <li>וודא שהחברה פעילה ויש לה נוכחות מקוונת</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </main>
 
@@ -295,6 +306,37 @@
             
             // Check if it's a new day for statistics
             checkNewDay();
+            
+            // Check API configuration
+            checkAPIConfiguration();
+        }
+
+        function checkAPIConfiguration() {
+            if (!SERP_API_CONFIG.apiKey || SERP_API_CONFIG.apiKey.includes('your_serpapi_key_here')) {
+                const warningMsg = document.createElement('div');
+                warningMsg.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow-lg z-50 max-w-md';
+                warningMsg.innerHTML = `
+                    <div class="flex items-center">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 ml-2"></i>
+                        <div class="hebrew-text">
+                            <p class="font-bold">נדרש הגדרת מפתח API</p>
+                            <p class="text-sm">עבור לקובץ .env והגדר את המפתח של SerpAPI</p>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(warningMsg);
+                
+                // Auto-hide after 10 seconds
+                setTimeout(() => {
+                    if (document.body.contains(warningMsg)) {
+                        document.body.removeChild(warningMsg);
+                    }
+                }, 10000);
+                
+                // Recreate icons for the warning
+                lucide.createIcons();
+            }
         }
 
         function setupEventListeners() {
@@ -346,7 +388,20 @@
                 
             } catch (error) {
                 console.error('Search error:', error);
-                showError('שגיאה בחיפוש. אנא נסה שנית.');
+                
+                // Show specific error messages based on error type
+                if (error.message.includes('SerpAPI key not configured')) {
+                    showError('מפתח SerpAPI לא הוגדר. אנא הגדר את המפתח בקובץ .env');
+                } else if (error.message.includes('SerpAPI request failed')) {
+                    showError('שגיאה בקישור לשירות החיפוש. אנא בדוק את החיבור לאינטרנט ונסה שנית.');
+                } else if (error.message.includes('SerpAPI Error')) {
+                    showError('שגיאה בשירות החיפוש: ' + error.message.replace('SerpAPI Error: ', ''));
+                } else {
+                    showError('שגיאה בחיפוש. אנא נסה שנית או פנה לתמיכה.');
+                }
+                
+                // Show empty results
+                displayResults([], query);
             } finally {
                 hideLoading();
             }
@@ -400,9 +455,8 @@
                 // Build search query
                 const searchQuery = buildSearchQuery(query, customerType);
                 
-                // For demo purposes, we'll simulate API response
-                // In production, replace this with actual SerpAPI call
-                const contacts = await simulateApiCall(searchQuery, customerType);
+                // Make real SerpAPI call
+                const contacts = await makeRealSerpAPICall(searchQuery, customerType);
                 
                 // Cache results
                 SERP_API_CONFIG.cache.set(cacheKey, {
@@ -434,92 +488,207 @@
             }
         }
 
-        // Simulate API response for demo purposes
-        async function simulateApiCall(query, customerType) {
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+        // Real SerpAPI integration
+        async function makeRealSerpAPICall(searchQuery, customerType) {
+            if (!SERP_API_CONFIG.apiKey || SERP_API_CONFIG.apiKey.includes('your_serpapi_key_here')) {
+                throw new Error('SerpAPI key not configured. Please set your API key in the .env file.');
+            }
+
+            const params = new URLSearchParams({
+                engine: 'google',
+                api_key: SERP_API_CONFIG.apiKey,
+                q: searchQuery,
+                hl: 'he', // Hebrew language
+                gl: 'il', // Israel location
+                num: 20   // Number of results
+            });
+
+            const response = await fetch(`${SERP_API_CONFIG.baseUrl}?${params.toString()}`);
             
-            // Generate mock contacts based on query and customer type
-            return generateMockContacts(query, customerType);
+            if (!response.ok) {
+                throw new Error(`SerpAPI request failed: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(`SerpAPI Error: ${data.error}`);
+            }
+
+            // Process real results from SerpAPI
+            return processRealSerpAPIResults(data, customerType, searchQuery);
         }
 
-        function generateMockContacts(query, customerType) {
+        function processRealSerpAPIResults(serpApiData, customerType, originalQuery) {
             const contacts = [];
-            const numContacts = Math.floor(Math.random() * 8) + 3; // 3-10 contacts
+            const results = serpApiData.organic_results || [];
             
-            for (let i = 0; i < numContacts; i++) {
-                const contact = generateMockContact(query, customerType, i);
-                contacts.push(contact);
+            if (results.length === 0) {
+                return contacts;
             }
-            
-            // Sort by relevance
+
+            for (let i = 0; i < Math.min(results.length, 10); i++) {
+                const result = results[i];
+                const contact = extractContactFromResult(result, customerType, originalQuery, i);
+                
+                if (contact && isValidContact(contact)) {
+                    contacts.push(contact);
+                }
+            }
+
+            // Sort by relevance score
             return contacts.sort((a, b) => b.relevance - a.relevance);
         }
 
-        function generateMockContact(query, customerType, index) {
-            const firstNames = ['יוסי', 'רות', 'דוד', 'מרים', 'אברהם', 'רחל', 'משה', 'שרה', 'חיים', 'לאה'];
-            const lastNames = ['כהן', 'לוי', 'מזרחי', 'פרידמן', 'דוד', 'אברמוביץ', 'גולדשטיין', 'ברקוביץ', 'רוזנברג', 'שפירא'];
+        function extractContactFromResult(result, customerType, originalQuery, index) {
+            // Extract basic information from search result
+            const title = result.title || '';
+            const snippet = result.snippet || '';
+            const link = result.link || '';
             
-            const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-            const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+            // Try to extract contact information from title and snippet
+            const contactInfo = extractContactInfo(title, snippet, link, customerType);
             
-            let title, company;
-            
-            switch (customerType) {
-                case 'company':
-                    title = ['מנהל חשבונות', 'מנהל כספים', 'רואה חשבון', 'מנכ"ל'][Math.floor(Math.random() * 4)];
-                    company = query.includes('חברת') ? query : `חברת ${query} בע"מ`;
-                    break;
-                case 'kibbutz':
-                    title = ['מזכיר', 'מזכירה', 'מנהל חשבונות', 'גזבר'][Math.floor(Math.random() * 4)];
-                    company = query.includes('קיבוץ') ? query : `קיבוץ ${query}`;
-                    break;
-                default:
-                    title = ['בעל העסק', 'מנהל רכש', 'איש קשר', 'מנהל'][Math.floor(Math.random() * 4)];
-                    company = `${firstName} ${lastName} - ${query}`;
+            if (!contactInfo.name) {
+                return null;
             }
-            
-            const relevanceScore = Math.max(0.3, 1 - (index * 0.15));
+
+            // Calculate relevance based on position and content match
+            const relevanceScore = calculateRelevance(result, customerType, originalQuery, index);
             
             return {
-                id: generateId(),
-                name: `${firstName} ${lastName}`,
-                title: title,
-                company: company,
-                phone: generatePhoneNumber(),
-                email: generateEmail(firstName, lastName, company),
+                id: generateUniqueId(),
+                name: contactInfo.name,
+                title: contactInfo.jobTitle,
+                company: contactInfo.company,
+                phone: contactInfo.phone,
+                email: contactInfo.email,
                 relevance: relevanceScore,
                 type: customerType,
-                source: 'Google Search',
+                source: 'SerpAPI - Google Search',
+                sourceUrl: link,
                 addedAt: new Date().toISOString()
             };
         }
 
-        function generateId() {
-            return Math.random().toString(36).substr(2, 9);
+        function extractContactInfo(title, snippet, link, customerType) {
+            const combinedText = `${title} ${snippet}`;
+            
+            // Extract name patterns (Hebrew names)
+            const namePatterns = [
+                /(?:מר |גב' |ד"ר |מהנדס )([א-ת]+ [א-ת]+)/g,
+                /([א-ת]+ [א-ת]+)(?= -| מנהל| רו"ח| CFO)/g,
+                /איש קשר:?\s*([א-ת]+ [א-ת]+)/gi
+            ];
+            
+            let name = '';
+            for (const pattern of namePatterns) {
+                const match = pattern.exec(combinedText);
+                if (match) {
+                    name = match[1].trim();
+                    break;
+                }
+            }
+            
+            // Extract job title
+            const jobTitlePatterns = {
+                company: ['מנהל חשבונות', 'מנהל כספים', 'רואה חשבון', 'CFO', 'מנכ"ל'],
+                kibbutz: ['מזכיר', 'מזכירה', 'מנהל חשבונות', 'גזבר'],
+                private: ['בעל העסק', 'מנהל רכש', 'איש קשר', 'מנהל']
+            };
+            
+            let jobTitle = 'איש קשר';
+            const relevantTitles = jobTitlePatterns[customerType] || jobTitlePatterns.private;
+            
+            for (const titlePattern of relevantTitles) {
+                if (combinedText.includes(titlePattern)) {
+                    jobTitle = titlePattern;
+                    break;
+                }
+            }
+            
+            // Extract company name from domain or title
+            let company = '';
+            const domainMatch = link.match(/https?:\/\/(?:www\.)?([^\/]+)/);
+            if (domainMatch) {
+                company = domainMatch[1].replace(/\.co\.il$|\.com$/, '');
+            }
+            
+            // Try to extract company from title
+            if (!company) {
+                const companyPatterns = [
+                    /חברת ([^-|]+)/i,
+                    /קיבוץ ([^-|]+)/i,
+                    /([^-|]+) בע"מ/i
+                ];
+                
+                for (const pattern of companyPatterns) {
+                    const match = pattern.exec(title);
+                    if (match) {
+                        company = match[1].trim();
+                        break;
+                    }
+                }
+            }
+            
+            // Extract phone (Israeli format)
+            const phonePattern = /0(?:5[0-9]|7[23456789])-?\d{3}-?\d{4}/g;
+            const phoneMatch = phonePattern.exec(combinedText);
+            const phone = phoneMatch ? phoneMatch[0] : '';
+            
+            // Extract email
+            const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
+            const emailMatch = emailPattern.exec(combinedText);
+            const email = emailMatch ? emailMatch[0] : '';
+            
+            return {
+                name: name,
+                jobTitle: jobTitle,
+                company: company || 'לא צוין',
+                phone: phone,
+                email: email
+            };
         }
 
-        function generatePhoneNumber() {
-            const prefixes = ['050', '052', '053', '054', '055', '058'];
-            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-            const number = Math.floor(Math.random() * 9000000) + 1000000;
-            return `${prefix}-${number.toString().substr(0, 3)}-${number.toString().substr(3)}`;
+        function calculateRelevance(result, customerType, originalQuery, index) {
+            let score = 1.0;
+            
+            // Reduce score based on position (first results are more relevant)
+            score -= (index * 0.1);
+            
+            // Bonus for exact query match in title
+            if (result.title && result.title.includes(originalQuery)) {
+                score += 0.2;
+            }
+            
+            // Bonus for customer type specific keywords
+            const text = `${result.title} ${result.snippet}`.toLowerCase();
+            const bonusKeywords = {
+                company: ['חשבונות', 'כספים', 'רו"ח', 'cfo', 'בע"מ'],
+                kibbutz: ['קיבוץ', 'מזכיר', 'גזבר'],
+                private: ['בעלים', 'מנהל', 'איש קשר']
+            };
+            
+            const keywords = bonusKeywords[customerType] || [];
+            for (const keyword of keywords) {
+                if (text.includes(keyword)) {
+                    score += 0.1;
+                }
+            }
+            
+            // Ensure score is between 0 and 1
+            return Math.max(0.1, Math.min(1.0, score));
         }
 
-        function generateEmail(firstName, lastName, company) {
-            const domain = company.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + '.co.il';
-            const username = (firstName + '.' + lastName).toLowerCase()
-                .replace(/[אבגדהוזחטיכלמנסעפצקרשת]/g, match => {
-                    const hebrewToEnglish = {
-                        'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h',
-                        'ו': 'v', 'ז': 'z', 'ח': 'ch', 'ט': 't', 'י': 'y',
-                        'כ': 'k', 'ל': 'l', 'מ': 'm', 'ן': 'n', 'נ': 'n',
-                        'ס': 's', 'ע': 'e', 'פ': 'p', 'צ': 'ts', 'ק': 'k',
-                        'ר': 'r', 'ש': 'sh', 'ת': 't'
-                    };
-                    return hebrewToEnglish[match] || match;
-                });
-            return `${username}@${domain}`;
+        function isValidContact(contact) {
+            // Basic validation - must have at least name and some contact method
+            return contact.name && 
+                   contact.name.length > 2 && 
+                   (contact.phone || contact.email || contact.sourceUrl);
+        }
+
+        function generateUniqueId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
         }
 
         function displayResults(contacts, query) {
