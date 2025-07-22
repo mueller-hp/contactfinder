@@ -506,24 +506,67 @@
                 num: 20   // Number of results
             });
 
-            // Use CORS proxy to bypass browser CORS restrictions
-            const corsProxyUrl = 'https://api.allorigins.win/get?url=';
-            const targetUrl = encodeURIComponent(`${SERP_API_CONFIG.baseUrl}?${params.toString()}`);
-            const response = await fetch(`${corsProxyUrl}${targetUrl}`);
+            // Use multiple CORS proxy services for better reliability
+            const corsProxies = [
+                'https://api.codetabs.com/v1/proxy?quest=',
+                'https://cors-anywhere.herokuapp.com/',
+                'https://api.allorigins.win/get?url='
+            ];
             
-            if (!response.ok) {
-                throw new Error(`SerpAPI request failed: ${response.status} ${response.statusText}`);
+            let response = null;
+            let lastError = null;
+            
+            // Try different CORS proxy services
+            for (const proxyUrl of corsProxies) {
+                try {
+                    const targetUrl = `${SERP_API_CONFIG.baseUrl}?${params.toString()}`;
+                    const fullUrl = proxyUrl.includes('allorigins') 
+                        ? `${proxyUrl}${encodeURIComponent(targetUrl)}`
+                        : `${proxyUrl}${targetUrl}`;
+                    
+                    response = await Promise.race([
+                        fetch(fullUrl),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Request timeout')), 10000)
+                        )
+                    ]);
+                    
+                    if (response.ok) {
+                        break; // Success, use this proxy
+                    }
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`CORS proxy ${proxyUrl} failed:`, error.message);
+                    continue; // Try next proxy
+                }
+            }
+            
+            if (!response || !response.ok) {
+                throw new Error(`All CORS proxies failed. Last error: ${lastError?.message || 'Unknown error'}`);
             }
 
-            const corsData = await response.json();
+            let data;
+            const responseText = await response.text();
             
-            // Check if CORS proxy request was successful
-            if (!corsData.contents) {
-                throw new Error('CORS proxy request failed');
+            // Handle different proxy response formats
+            try {
+                const corsData = JSON.parse(responseText);
+                
+                // Handle allorigins format
+                if (corsData.contents) {
+                    data = JSON.parse(corsData.contents);
+                } else {
+                    // Direct proxy response
+                    data = corsData;
+                }
+            } catch (parseError) {
+                // If JSON parsing fails, try parsing responseText as direct JSON
+                try {
+                    data = JSON.parse(responseText);
+                } catch (secondParseError) {
+                    throw new Error(`Failed to parse API response: ${secondParseError.message}`);
+                }
             }
-            
-            // Parse the actual SerpAPI response from the proxy
-            const data = JSON.parse(corsData.contents);
             
             if (data.error) {
                 throw new Error(`SerpAPI Error: ${data.error}`);
